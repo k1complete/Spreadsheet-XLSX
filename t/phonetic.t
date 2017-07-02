@@ -12,7 +12,7 @@ use Test::More tests => 13;
       ok ($cells->[0][0]->{Val} eq '佐藤', 'shared text');
       ok ($cells->[0][0]->{Rph}->[0]->{Val} eq 'サトウ', 'phonetic');
       ok ($cells->[5][0]->{Val} eq '十分', 'phonetic');
-      ok ($cells->[6][0]->{Val} eq '課きく毛こ', 'kakikukeko');
+      ok ($cells->[6][0]->{Val} eq '課きく 毛こ', 'kakiku keko');
       ok ($cells->[6][0]->{Rph}->[0]->{Val} eq 'カ', 'phonetic_ka');
       ok ($cells->[6][0]->{Rph}->[0]->{Sb} eq '0', 'phonetic_sb_ka');
       ok ($cells->[6][0]->{Rph}->[0]->{Eb} eq '1', 'phonetic_eb_ka');

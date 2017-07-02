@@ -396,7 +396,7 @@ including Workbook, Worksheet, and Cell.
 Phonetic hint, used in far east asia is supported by 'Rph' and 'PhoneticPr'
 key:
     <si>
-     <t>課きく毛こ</t>
+     <t>課きく 毛こ</t>
      <rPh sb="0" eb="1">
       <t>カ</t> 
      </rPh>
