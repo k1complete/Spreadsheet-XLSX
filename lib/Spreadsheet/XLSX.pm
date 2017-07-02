@@ -24,7 +24,7 @@ sub new {
 
     my $zip                     = __load_zip($filename);
 
-    $shared_info{shared_strings}= __load_shared_strings($zip, $shared_info{converter});
+    $shared_info{shared_strings} = __load_shared_strings($zip, $shared_info{converter});
     my ($styles, $style_info)   = __load_styles($zip);
     $shared_info{styles}        = $styles;
     $shared_info{style_info}    = $style_info;
@@ -50,7 +50,7 @@ sub _load_workbook {
 
         /^(\w+)\s+/;
 
-        my ($tag, $other) = ($1, $');
+        my ($tag, $other) = ($1, $', $');
 
         my @pairs = split /\" /, $other;
 
@@ -96,6 +96,8 @@ sub _load_workbook {
         my $s2   = 0;
         my $sty  = 0;
         foreach ($member_sheet->contents =~ /(\<.*?\/?\>|.*?(?=\<))/g) {
+            my $rph = undef;
+            my $ppr = undef;
             if (/^\<c\s*.*?\s*r=\"([A-Z])([A-Z]?)(\d+)\"/) {
 
                 ($row, $col) = __decode_cell_name($1, $2, $3);
@@ -109,8 +111,14 @@ sub _load_workbook {
             } elsif (/^<\/v>/) {
                 $parsing_v_tag = 0;
             } elsif (length($_) && $parsing_v_tag) {
-                my $v = $s ? $shared_info->{shared_strings}->[$_] : $_;
-
+                my $si = $shared_info->{shared_strings}->[$_];
+                my $v = $s ? $si->{Val} : $_;
+                if (exists($si->{Rph})) {
+                    $rph = $s ? $si->{Rph} : undef;
+                }
+                if (exists($si->{PhoneticPr})) {
+                    $ppr = $s ? $si->{PhoneticPr} : undef;
+                }
                 if ($v eq "</c>") {
                     $v = "";
                 }
@@ -143,7 +151,10 @@ sub _load_workbook {
                     Format => $thisstyle,
                     Type   => $type
                 );
-
+                if ($s && $rph) {
+                    $cell->{Rph} = $rph;
+                    $cell->{PhoneticPr} = $ppr;
+                }
                 $cell->{_Value} = $self->{FmtClass}->ValFmt($cell, $self);
                 if ($type eq "Date") {
                     if ($v < 1) {    #then this is Excel time field
@@ -181,7 +192,50 @@ sub __decode_cell_name {
     return ($row, $col);
 }
 
-
+sub __load_rph_do {
+    my ($si, $converter, @ret) = @_;
+    if ($si =~ /<rPh(.*?)>(.*?)<\/rPh>(.*)/sm) {
+        my $att = $1;
+        my $cont = $2;
+        my $nsi = $3;
+        my $sb;
+        my $eb;
+        my $str;
+        if ($att =~ /\s*sb\s*=\s*"(.*?)"/sm) {
+            $sb = $1;
+        }
+        if ($att =~ /\s*eb\s*=\s*"(.*?)"/sm) {
+            $eb = $1;
+        }
+        ## must be one time only(A.2 Spreadsheet ML line 1816)
+        foreach my $t ($cont =~ /<t.*?>(.*?)<\/t/gsm) {
+            $t = $converter->convert($t) if defined $converter;
+            $str .= $t;
+        }
+        push @ret, {Val => $str, Sb => $sb, Eb => $eb};
+        __load_rph_do($nsi, $converter, @ret);
+    } else {
+        return @ret;
+    }
+}
+sub __load_rph {
+    my ($si, $converter) = @_;
+    my @ret = __load_rph_do($si, $converter, ());
+    return \@ret;
+}
+sub __load_phonetic_pr {
+    my ($si) = @_;
+    my %retval = ();
+    foreach my $i ($si =~ /<phoneticPr\s(.*?)\/>/gsm) {
+        if ($i =~ /type\s*=\s*"(.*?)"/) {
+            $retval{Type} = $1;
+        }
+        if ($i =~ /fontId\s*=\s*"(.*?)"/) {
+            $retval{FontId} = $1;
+        }
+    }
+    return \%retval;
+}
 sub __load_shared_strings {
     my ($zip, $converter) = @_;
 
@@ -190,16 +244,20 @@ sub __load_shared_strings {
     my @shared_strings = ();
 
     if ($member_shared_strings) {
-
         my $mstr = $member_shared_strings->contents;
         $mstr =~ s/<t\/>/<t><\/t>/gsm;    # this handles an empty t tag in the xml <t/>
         foreach my $si ($mstr =~ /<si.*?>(.*?)<\/si/gsm) {
+            
+            my $rph = __load_rph($si, $converter);
+            my $phoneticPr = __load_phonetic_pr($si);
             my $str;
+            $si =~ s/<rPh.*?<\/rPh>//gsm;
             foreach my $t ($si =~ /<t.*?>(.*?)<\/t/gsm) {
                 $t = $converter->convert($t) if defined $converter;
                 $str .= $t;
             }
-            push @shared_strings, $str;
+            push @shared_strings, {Val => $str, Rph => $rph, 
+                                                PhoneticPr => $phoneticPr};
         }
     }
 
@@ -285,7 +343,7 @@ sub __load_zip {
 
 1;
 __END__
-
+=encoding utf8
 =head1 NAME
 
 Spreadsheet::XLSX - Perl extension for reading MS Excel 2007 files;
@@ -332,6 +390,34 @@ This module is a (quick and dirty) emulation of Spreadsheet::ParseExcel for
 Excel 2007 (.xlsx) file format.  It supports styles and many of Excel's quirks, 
 but not all.  It populates the classes from Spreadsheet::ParseExcel for interoperability; 
 including Workbook, Worksheet, and Cell.
+
+=head2 Phonetic hint
+
+Phonetic hint, used in far east asia is supported by 'Rph' and 'PhoneticPr'
+key:
+    <si>
+     <t>課きく毛こ</t>
+     <rPh sb="0" eb="1">
+      <t>カ</t> 
+     </rPh>
+     <rPh sb="4" eb="5"> 
+      <t>ケ</t>
+     </rPh>
+     <phoneticPr fontId="1"/>
+    </si>
+
+if a cell[0][0]->{Val} is '課きく毛こ', The
+cell[0][0]->{Rph}->[0]->{Val} is 'カ', cell[0][0]->{Rph}->[0]->{Sb} is
+0, and cell[0][0]->{Rph}->[0]->{Eb} is 1,
+cell[0][0]->{Rph}->[1]->{Val} is 'ケ', cell[0][0]->{Rph}->[1]->{Sb} is
+4, and cell[0][0]->{Rph}->[0]->{Eb} is 5,
+cell[0][0]->{PhoneticPr}->{FontId} is 1,
+cell[0][0]->{PhoneticPr}->{Type} is undef.  Phonetic hint keys are
+named by capitalizing the first letter from ecma-376 attribute names.
+
+Sb is base text start index, Eb is base text end index(cf. ecma-376
+18.4.6).  if {PhoneticPr}->{Type} is undef, then "fullWithKatakana" by
+default (cf. ecma-276 B.2 Spreadsheet ML line 2005).
 
 =head1 SEE ALSO
 
@@ -407,5 +493,7 @@ Copyright (C) 2008 by Dmitry Ovsyanko
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,
 at your option, any later version of Perl 5 you may have available.
+
+cf. http://www.ecma-international.org/publications/standards/Ecma-376.htm
 
 =cut
