@@ -113,8 +113,8 @@ sub _load_workbook {
             } elsif (length($_) && $parsing_v_tag) {
                 my $si = $shared_info->{shared_strings}->[$_];
                 my $v = $s ? $si->{Val} : $_;
-                if (exists($si->{Rph})) {
-                    $rph = $s ? $si->{Rph} : undef;
+                if (exists($si->{RPh})) {
+                    $rph = $s ? $si->{RPh} : undef;
                 }
                 if (exists($si->{PhoneticPr})) {
                     $ppr = $s ? $si->{PhoneticPr} : undef;
@@ -152,7 +152,7 @@ sub _load_workbook {
                     Type   => $type
                 );
                 if ($s && $rph) {
-                    $cell->{Rph} = $rph;
+                    $cell->{RPh} = $rph;
                     $cell->{PhoneticPr} = $ppr;
                 }
                 $cell->{_Value} = $self->{FmtClass}->ValFmt($cell, $self);
@@ -256,7 +256,7 @@ sub __load_shared_strings {
                 $t = $converter->convert($t) if defined $converter;
                 $str .= $t;
             }
-            push @shared_strings, {Val => $str, Rph => $rph, 
+            push @shared_strings, {Val => $str, RPh => $rph, 
                                                 PhoneticPr => $phoneticPr};
         }
     }
@@ -393,7 +393,7 @@ including Workbook, Worksheet, and Cell.
 
 =head2 Phonetic hint
 
-Phonetic hint, used in far east asia is supported by 'Rph' and 'PhoneticPr'
+Phonetic hint, used in far east asia is supported by 'RPh' and 'PhoneticPr'
 key:
     <si>
      <t>課きく 毛こ</t>
@@ -406,11 +406,11 @@ key:
      <phoneticPr fontId="1"/>
     </si>
 
-if a cell[0][0]->{Val} is '課きく毛こ', The
-cell[0][0]->{Rph}->[0]->{Val} is 'カ', cell[0][0]->{Rph}->[0]->{Sb} is
-0, and cell[0][0]->{Rph}->[0]->{Eb} is 1,
-cell[0][0]->{Rph}->[1]->{Val} is 'ケ', cell[0][0]->{Rph}->[1]->{Sb} is
-4, and cell[0][0]->{Rph}->[0]->{Eb} is 5,
+if a cell[0][0]->{Val} is '課きく 毛こ', The
+cell[0][0]->{RPh}->[0]->{Val} is 'カ', cell[0][0]->{RPh}->[0]->{Sb} is
+0, and cell[0][0]->{RPh}->[0]->{Eb} is 1,
+cell[0][0]->{RPh}->[1]->{Val} is 'ケ', cell[0][0]->{RPh}->[1]->{Sb} is
+4, and cell[0][0]->{RPh}->[0]->{Eb} is 5,
 cell[0][0]->{PhoneticPr}->{FontId} is 1,
 cell[0][0]->{PhoneticPr}->{Type} is undef.  Phonetic hint keys are
 named by capitalizing the first letter from ecma-376 attribute names.
